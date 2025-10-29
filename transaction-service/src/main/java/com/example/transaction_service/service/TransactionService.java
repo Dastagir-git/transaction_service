@@ -1,6 +1,7 @@
 package com.example.transaction_service.service;
 
 import com.example.transaction_service.CustomizeException.AccountNotFoundException;
+import com.example.transaction_service.CustomizeException.InsufficientBalanceException;
 import com.example.transaction_service.CustomizeException.ServerDownException;
 import com.example.transaction_service.kafkaConfig.KafkaProducer;
 import com.example.transaction_service.model.AccountDto;
@@ -47,47 +48,51 @@ public class TransactionService {
     KafkaProducer kafkaProducer;
 
     @Transactional
-    public ResponseEntity<String> depositOrWithdrawService(TransactionDto transactionDto){
+    public ResponseEntity<String> depositOrWithdrawService(TransactionDto transactionDto) throws Exception {
 
-       AccountDto accountDto= restTemplate.getForObject(getObj+transactionDto.getAccountNo(),AccountDto.class);
+        AccountDto accountDto = restTemplate.getForObject(getObj + transactionDto.getAccountNo(), AccountDto.class);
 
 
-       if(accountDto != null && transactionDto.getType().equals("DEPOSIT")){             // DEPOSIT, WITHDRAWAL
-           accountDto.setBalance(accountDto.getBalance().add(transactionDto.getAmount()));
-           restTemplate.postForObject(saveObj,accountDto,String.class);
-           transactionRepo.save(transactionDto);
+        if (accountDto != null && transactionDto.getType().equals("DEPOSIT")) {             // DEPOSIT, WITHDRAWAL
+            accountDto.setBalance(accountDto.getBalance().add(transactionDto.getAmount()));
+            restTemplate.postForObject(saveObj, accountDto, String.class);
+            transactionRepo.save(transactionDto);
 
-           completedEvent.setTransactionId(transactionDto.getId());
-           completedEvent.setAmount(transactionDto.getAmount());
-           completedEvent.setAccountNo(transactionDto.getAccountNo());
-           completedEvent.setType(transactionDto.getType());
+            completedEvent.setTransactionId(transactionDto.getId());
+            completedEvent.setAmount(transactionDto.getAmount());
+            completedEvent.setAccountNo(transactionDto.getAccountNo());
+            completedEvent.setType(transactionDto.getType());
 
-           kafkaProducer.publishEvent(completedEvent);
+            kafkaProducer.publishEvent(completedEvent);
 
-           kafkaProducer.notification("Amount Deposited with id "+ transactionDto.getId());
+            kafkaProducer.notification("Amount Deposited with id " + transactionDto.getId());
 
-           return new ResponseEntity<>("Amount Credited", HttpStatus.OK);
-       }
-       else if(accountDto != null && transactionDto.getType().equals("WITHDRAW")){
-           accountDto.setBalance(accountDto.getBalance().subtract(transactionDto.getAmount()));
-           restTemplate.postForObject(saveObj,accountDto,String.class);
-           transactionRepo.save(transactionDto);
-           completedEvent.setTransactionId(transactionDto.getId());
-           completedEvent.setAmount(transactionDto.getAmount());
-           completedEvent.setAccountNo(transactionDto.getAccountNo());
-           completedEvent.setType(transactionDto.getType());
+            return new ResponseEntity<>("Amount Credited", HttpStatus.OK);
+        }
+        else if (accountDto != null && transactionDto.getType().equals("WITHDRAW")) {
+            if (accountDto.getBalance().subtract(transactionDto.getAmount()).doubleValue() < 0.0)
+                throw new InsufficientBalanceException();
+            else {
+//            assert accountDto != null;
+                accountDto.setBalance(accountDto.getBalance().subtract(transactionDto.getAmount()));
+                restTemplate.postForObject(saveObj, accountDto, String.class);
+                transactionRepo.save(transactionDto);
+                completedEvent.setTransactionId(transactionDto.getId());
+                completedEvent.setAmount(transactionDto.getAmount());
+                completedEvent.setAccountNo(transactionDto.getAccountNo());
+                completedEvent.setType(transactionDto.getType());
 
-           kafkaProducer.publishEvent(completedEvent);
+                kafkaProducer.publishEvent(completedEvent);
 
-           kafkaProducer.notification("Amount Debited with id "+ transactionDto.getId());
+                kafkaProducer.notification("Amount Debited with id " + transactionDto.getId());
 
-           return new ResponseEntity<>("Amount Debited", HttpStatus.OK);
-       }
+                return new ResponseEntity<>("Amount Debited", HttpStatus.OK);
+            }
+        }
 
-          else {
+
               kafkaProducer.notification("Please Check amount type that should be (WITHDRAW or DEPOSIT)");
               throw new AccountNotFoundException();
-       }
 
     }
 

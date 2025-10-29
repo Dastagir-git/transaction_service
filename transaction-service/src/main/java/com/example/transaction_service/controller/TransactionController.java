@@ -19,7 +19,7 @@ public class TransactionController {
     TransactionService transactionService;
 
     @PostMapping("/depositOrWithdraw")
-    public ResponseEntity<String> deposit(@RequestBody TransactionDto transactionDto){
+    public ResponseEntity<String> deposit(@RequestBody TransactionDto transactionDto) throws Exception {
      return transactionService.depositOrWithdrawService(transactionDto);
     }
 

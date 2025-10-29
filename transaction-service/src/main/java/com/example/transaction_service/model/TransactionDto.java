@@ -14,6 +14,7 @@ public class TransactionDto {
     private Long id;
     private Long accountNo;
     private BigDecimal amount;
+    private String type;  // DEPOSIT, WITHDRAWAL
 
 
     public Long getId() {
@@ -48,5 +49,5 @@ public class TransactionDto {
         this.type = type;
     }
 
-    private String type;  // DEPOSIT, WITHDRAWAL
+
 }
